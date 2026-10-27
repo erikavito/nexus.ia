@@ -1,0 +1,31 @@
+
+[project]
+name = "nexus-ai"
+version = "0.1.0"
+description = "Assistente virtual inteligente para atendimento académico"
+requires-python = ">=3.10"
+dependencies = [
+    "langchain>=1.4,<2",
+    "langchain-core>=1.6,<2",
+    "langgraph>=1.2,<2",
+    "langsmith>=0.14,<1",
+    "langchain-groq>=1.1,<2",
+    "langchain-text-splitters>=1.1,<2",
+    "pypdf>=6.0",
+    "fastembed>=0.9",
+    "python-dotenv>=1.0",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8"]
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+markers = ["embeddings: testes que baixam e usam o modelo de embeddings real"]
