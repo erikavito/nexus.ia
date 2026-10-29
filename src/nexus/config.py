@@ -34,5 +34,5 @@ def criar_modelo(config: Config):
     from langchain_groq import ChatGroq
 
     return ChatGroq(
-        model=config.modelo, temperature=0, max_tokens=1024, timeout=30, max_retries=2
+        model=config.modelo, temperature=0, max_tokens=2048, timeout=30, max_retries=2
     )

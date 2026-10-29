@@ -7,6 +7,56 @@ from langchain_core.embeddings import Embeddings
 from langchain_core.vectorstores import InMemoryVectorStore
 from langsmith import traceable
 
+import unicodedata
+
+FONTES_POR_DISCIPLINA = {
+    "redes de computadores": "plano-redes-de-computadores.pdf",
+    "programacao para web": "plano-programacao-para-web.pdf",
+    "inteligencia artificial": "plano-inteligencia-artificial.pdf",
+    "economia": "plano-economia.pdf",
+    "design de interacao": "plano-design-de-interacao.pdf",
+    "big data e ciencias de dados": "plano-big-data-e-ciencias-de-dados.pdf",
+    "ciencias de dados": "plano-big-data-e-ciencias-de-dados.pdf",
+}
+
+
+
+def normalizar_texto(texto: str) -> str:
+    """Normaliza acentos, pontuação e espaços para comparar consultas."""
+    texto = unicodedata.normalize("NFKD", texto.casefold())
+
+    # Remove marcas de acentuação.
+    texto = "".join(
+        caractere
+        for caractere in texto
+        if not unicodedata.combining(caractere)
+    )
+
+    # Converte pontuação e espaços especiais em espaços normais.
+    texto = "".join(
+        caractere if caractere.isalnum() else " "
+        for caractere in texto
+    )
+
+    # Remove espaços repetidos e nas extremidades.
+    return " ".join(texto.split())
+
+
+
+def filtro_da_consulta(consulta: str) -> dict | None:
+    pergunta = normalizar_texto(consulta)
+
+    for disciplina in sorted(
+        FONTES_POR_DISCIPLINA,
+        key=len,
+        reverse=True,
+    ):
+        if disciplina in pergunta:
+            return {"fonte": FONTES_POR_DISCIPLINA[disciplina]}
+
+    return None
+
+
 
 @dataclass
 class Trecho:
@@ -48,20 +98,76 @@ class EmbeddingsLocais(Embeddings):
 
 
 class BaseDocumental:
-    """Guarda os trechos e seus vetores em memória e responde a buscas."""
 
     def __init__(self, trechos: list[Document], embeddings: Embeddings):
         self.loja = InMemoryVectorStore(embedding=embeddings)
+
+        # Adiciona os trechos à base vetorial.
         self.loja.add_documents(trechos)
+
+        # Guarda os documentos e as informações da base.
+        self.documentos_indexados = trechos
         self.fontes = sorted({t.metadata["fonte"] for t in trechos})
         self.total_trechos = len(trechos)
 
+
+
     @traceable(run_type="retriever", name="buscar_trechos")
     def buscar(self, consulta: str, k: int) -> list[Trecho]:
-        """Devolve os k trechos mais similares, do mais para o menos similar."""
+        """Busca trechos e aplica os filtros explicitamente."""
         if not consulta.strip():
             return []
-        pares = self.loja.similarity_search_with_score(consulta, k=k)
+
+        filtro_info = filtro_da_consulta(consulta)
+        pergunta = normalizar_texto(consulta)
+        fonte_alvo = filtro_info["fonte"] if filtro_info else None
+
+        consulta_de_conteudo = any(
+            termo in pergunta
+            for termo in (
+                "unidades tematicas",
+                "conteudos programaticos",
+                "topicos de cada unidade",
+                "topicos da unidade",
+                "topico da unidade",
+                "topicos abordados na unidade",
+                "topico abordado na unidade",
+                "ementa",
+            )
+        )
+
+        # Recupera os documentos sem depender do filtro do vector store.
+        total = len(self.documentos_indexados)
+        if total == 0:
+            return []
+
+        pares = self.loja.similarity_search_with_score(
+            consulta,
+            k=total,
+        )
+
+        # Aplica o filtro de fonte diretamente aos resultados.
+        if fonte_alvo:
+            pares = [
+                (doc, score)
+                for doc, score in pares
+                if doc.metadata.get("fonte") == fonte_alvo
+            ]
+
+        # Para conteúdos programáticos, considera as páginas iniciais.
+        if fonte_alvo and consulta_de_conteudo:
+            paginas_permitidas = {1, 2, 3, "1", "2", "3"}
+            pares = [
+                (doc, score)
+                for doc, score in pares
+                if doc.metadata.get("pagina") in paginas_permitidas
+            ]
+        else:
+            pares = pares[:k]
+
+        # Mantém primeiro os resultados mais semelhantes.
+        pares.sort(key=lambda item: float(item[1]), reverse=True)
+
         return [
             Trecho(
                 doc.page_content,
