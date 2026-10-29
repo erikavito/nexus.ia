@@ -2,6 +2,7 @@
 
 import logging
 import re
+import unicodedata
 from typing import Annotated, TypedDict
 
 from langchain_core.messages import AIMessage, AnyMessage, HumanMessage, SystemMessage
@@ -98,6 +99,44 @@ def construir_grafo(base, modelo, config: Config, checkpointer=None):
         trechos = estado["trechos"]
         if not trechos or trechos[0]["similaridade"] < config.limiar:
             return {"decisao": "sem_evidencia"}  # nem chama o modelo
+
+        consulta = unicodedata.normalize(
+            "NFD", estado["consulta"].casefold()
+        )
+
+        consulta = "".join(
+             caractere
+            for caractere in consulta
+            if unicodedata.category(caractere) != "Mn"
+        )
+
+        pergunta_de_conteudo = any(
+            termo in consulta
+            for termo in (
+                "unidades tematicas",
+                "conteudos programaticos",
+                "topicos de cada unidade",
+                "topicos da unidade",
+                "topico da unidade",
+                "topicos abordados na unidade",
+                "topico abordado na unidade",
+                "ementa",
+            )
+        )
+
+
+        fontes_recuperadas = {
+            trecho["referencia"].split(", p.")[0]
+            for trecho in trechos
+        }
+
+        if (
+            pergunta_de_conteudo
+            and len(trechos) >= 3
+            and len(fontes_recuperadas) == 1
+        ):
+            return {"decisao": "responder"}
+
         try:
             r = modelo.invoke(
                 [
