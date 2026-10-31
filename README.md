@@ -1,173 +1,342 @@
-# Nexus.IA — Assistente Virtual Académico
+# Nexus.IA — Assistente Virtual Acadêmico
 
-Assistente que responde a perguntas sobre a vida académica **usando apenas os
-documentos da faculdade** (planos de ensino, regulamentos, guias e políticas).
-Cada afirmação vem com a fonte citada; quando a resposta não está nos
-documentos, o assistente diz isso em vez de inventar.
+O **Nexus.IA** é um assistente virtual inteligente desenvolvido para facilitar o acesso às informações acadêmicas por meio da inteligência artificial e da recuperação de informações em documentos institucionais.
 
-O projeto tem duas formas de uso: **interface web** (navegador) e **linha de
-comando**.
+O sistema permite que estudantes façam perguntas em linguagem natural e recebam respostas fundamentadas nos documentos disponibilizados na base de conhecimento, como planos de ensino, regulamentos, guias e políticas acadêmicas.
+
+O objetivo é oferecer consultas mais simples e rápidas, com indicação das fontes utilizadas e evitando respostas sem evidências documentais.
 
 ---
 
-## 1. Instalação
+## 1. Funcionalidades
+
+- **Interface web:** interação com o assistente diretamente pelo navegador.
+- **Chat com histórico:** mantém o contexto das mensagens durante a conversa.
+- **Recuperação semântica:** localiza trechos relevantes nos documentos utilizando embeddings.
+- **Respostas com fontes:** apresenta referências dos documentos utilizados na resposta.
+- **Base documental:** consulta arquivos PDF, Markdown e TXT.
+- **Índice persistente:** armazena localmente os vetores gerados para reutilizá-los em execuções futuras, quando os documentos e o modelo permanecem compatíveis.
+- **Recarregamento de documentos:** permite atualizar a base documental pela interface web.
+- **Agente inteligente:** utiliza ferramentas para realizar buscas nos documentos.
+- **Fluxo com LangGraph:** avalia evidências, gera respostas, verifica citações e trata perguntas sem informações suficientes.
+- **Avaliação de respostas:** disponibiliza casos de referência e avaliadores determinísticos.
+- **Interface responsiva:** apresenta tema claro e escuro.
+
+## 2. Tecnologias utilizadas
+
+| Tecnologia | Aplicação |
+|---|---|
+| Python | Desenvolvimento principal |
+| LangChain | Integração com modelos e ferramentas |
+| LangGraph | Construção do fluxo de atendimento |
+| LangSmith | Avaliação e acompanhamento de experimentos |
+| Groq | Provedor do modelo de linguagem |
+| FastEmbed | Geração local de embeddings |
+| FastAPI | Desenvolvimento da API web |
+| Uvicorn | Servidor da aplicação |
+| HTML | Estrutura da interface |
+| CSS | Estilização da interface |
+| JavaScript | Interações e comunicação com a API |
+| PyPDF | Leitura de documentos PDF |
+| Pytest | Testes automatizados |
+| Git e GitHub | Controle de versão |
+
+## 3. Estrutura do projeto
+
+```text
+nexus.ia/
+│
+├── documents/
+│   ├── guia-avaliacoes.pdf
+│   ├── guia-de-atendimento.md
+│   ├── manual-laboratorios.md
+│   ├── perguntas-frequentes-academicas.md
+│   ├── plano-big-data-e-ciencias-de-dados.pdf
+│   ├── plano-design-de-interacao.pdf
+│   ├── plano-economia.pdf
+│   ├── plano-inteligencia-artificial.pdf
+│   ├── plano-programacao-para-web.pdf
+│   ├── plano-redes-de-computadores.pdf
+│   ├── politica-estagio.pdf
+│   ├── regulamento-biblioteca.md
+│   └── sobre-assistente.md
+│
+├── src/
+│   └── nexus/
+│       ├── estatico/
+│       │   ├── app.js
+│       │   ├── estilo.css
+│       │   ├── favicon.svg
+│       │   └── index.html
+│       │
+│       ├── __init__.py
+│       ├── __main__.py
+│       ├── agente_langchain.py
+│       ├── avaliacao.py
+│       ├── config.py
+│       ├── ferramentas.py
+│       ├── grafo.py
+│       ├── ingestao.py
+│       ├── prompts.py
+│       ├── rag_simples.py
+│       ├── recuperacao.py
+│       └── web.py
+│
+├── tests/
+│   ├── test_ingestao.py
+│   └── test_web.py
+│
+├── .env.example
+├── .gitignore
+├── pyproject.toml
+└── README.md
+```
+
+### Principais módulos
+
+- `__main__.py`: disponibiliza os comandos de execução do sistema.
+- `config.py`: centraliza as configurações e a criação do modelo de linguagem.
+- `ingestao.py`: realiza a leitura e divisão dos documentos em trechos.
+- `recuperacao.py`: gera embeddings, cria o índice documental e realiza a busca semântica.
+- `prompts.py`: contém as instruções utilizadas pelos componentes de inteligência artificial.
+- `rag_simples.py`: implementa a recuperação de informações seguida da geração de respostas.
+- `agente_langchain.py`: implementa o assistente com ferramentas de busca.
+- `ferramentas.py`: disponibiliza ferramentas para consulta à base documental.
+- `grafo.py`: organiza o fluxo de atendimento utilizando LangGraph.
+- `avaliacao.py`: contém os casos de referência e os avaliadores.
+- `web.py`: disponibiliza a API e o servidor da interface web.
+
+## 4. Pré-requisitos
+
+Para instalar e executar o projeto, é necessário:
+
+- Python 3.10 ou superior.
+- Git.
+- Acesso à internet durante a instalação das dependências e o primeiro download do modelo de embeddings.
+- Uma chave de API da Groq.
+
+## 5. Instalação e configuração
+
+### 5.1. Clonar o repositório
+
+```bash
+git clone https://github.com/erikavito/nexus.ia.git
+```
+
+### 5.2. Acessar a pasta
+
+```bash
+cd nexus.ia
+```
+
+### 5.3. Criar o ambiente virtual
 
 ```bash
 python -m venv .venv
-source .venv/bin/activate          # Windows: .venv\Scripts\activate
+```
+
+### 5.4. Ativar o ambiente virtual
+
+**Linux / Chromebook:**
+
+```bash
+source .venv/bin/activate
+```
+
+**Windows:**
+
+```bash
+.venv\Scripts\activate
+```
+
+### 5.5. Instalar as dependências
+
+```bash
 pip install -e ".[dev]"
 ```
 
-Crie um ficheiro `.env` na raiz do projeto:
+### 5.6. Configurar a chave de API
 
-```ini
+Crie um arquivo `.env` na raiz do projeto, seguindo o modelo `.env.example`.
+
+Adicione sua chave:
+
+```env
 GROQ_API_KEY=sua_chave_aqui
 ```
 
-> A chave é gratuita em <https://console.groq.com/keys>.
-> Os *embeddings* correm localmente com `fastembed` (o modelo é descarregado uma
-> única vez, na primeira execução) — não precisam de chave nem de internet
-> depois disso.
+A chave pode ser obtida em:
 
----
+https://console.groq.com/keys
 
-## 2. Interface web (recomendado)
+**Importante:** não compartilhe sua chave de API e não envie o arquivo `.env` para o GitHub.
+
+Os embeddings são processados localmente com FastEmbed. O modelo é baixado na primeira utilização.
+
+## 6. Como executar o projeto
+
+### 6.1. Interface web
+
+Com o ambiente virtual ativado, execute:
 
 ```bash
-python -m nexus web          # http://127.0.0.1:8000
-python -m nexus web --abrir  # abre o navegador automaticamente
-python -m nexus web --port 8080 --host 0.0.0.0
+python -m nexus web
 ```
 
-O que a interface oferece:
+A aplicação estará disponível em:
 
-| Recurso | Onde |
+```text
+http://127.0.0.1:8000
+```
+
+Para abrir o navegador automaticamente:
+
+```bash
+python -m nexus web --abrir
+```
+
+Para escolher outra porta:
+
+```bash
+python -m nexus web --port 8080
+```
+
+### 6.2. Linha de comando
+
+O projeto também permite utilizar o assistente diretamente pelo terminal.
+
+| Comando | Funcionalidade |
 |---|---|
-| Chat com histórico da conversa | ecrã principal |
-| Fontes de cada resposta (chips) | abaixo da resposta |
-| Trechos recuperados, decisão do grafo, tempo e nº de tentativas | “N trechos recuperados” |
-| Lista dos documentos indexados | barra lateral |
-| Estado da base (documentos, trechos, modelo) | cartão na barra lateral |
-| Recarregar documentos depois de os editar | botão na barra lateral |
-| Nova conversa (limpa o contexto do grafo) | botão no topo |
-| Tema claro/escuro (fica guardado no navegador) | botão no topo |
-| Perguntas sugeridas | ecrã inicial |
+| `python -m nexus buscar "pergunta"` | Realiza somente a recuperação de informações |
+| `python -m nexus simples "pergunta"` | Recupera informações e gera uma resposta |
+| `python -m nexus agente "pergunta"` | Executa o agente LangChain |
+| `python -m nexus conversar` | Inicia uma conversa pelo terminal |
+| `python -m nexus grafo` | Exibe o fluxo do grafo em Mermaid |
+| `python -m nexus.avaliacao local` | Executa a avaliação local |
 
-Atalhos: **Enter** envia, **Shift+Enter** nova linha. Clicar numa citação `[1]`
-abre os trechos que a sustentam.
-
-### Endpoints (documentados em `/api/docs`)
-
-| Método | Rota | Para quê |
-|---|---|---|
-| `GET` | `/api/estado` | estado da base, documentos, modelo, sugestão de correção |
-| `GET` | `/api/exemplos` | perguntas sugeridas |
-| `POST` | `/api/conversa` | `{ "mensagem": "...", "sessao": "..." }` → resposta, fontes, trechos |
-| `POST` | `/api/reiniciar` | limpa o histórico de uma sessão |
-| `POST` | `/api/documentos/recarregar` | relê `documents/` e reindexa |
-| `GET` | `/api/config` | configuração efetiva (modelo, k, limiar) |
-
-O mesmo grafo LangGraph da linha de comando é usado pela web — a interface não
-duplica lógica, só a expõe por HTTP.
-
----
-
-## 3. Linha de comando
+Para visualizar detalhes durante a conversa:
 
 ```bash
-python -m nexus web                    # interface web
-python -m nexus buscar "pergunta"      # só a recuperação (sem LLM)
-python -m nexus simples "pergunta"     # busca + geração, sem decisões
-python -m nexus agente "pergunta"      # agente LangChain com ferramentas
-python -m nexus conversar              # conversa no terminal (Ctrl+D sai)
-python -m nexus grafo                  # imprime o fluxo em Mermaid
-python -m nexus.avaliacao local        # casos de referência e avaliadores
+python -m nexus conversar --detalhes
 ```
 
----
+## 7. Como funciona a recuperação de informações
 
-## 4. Acrescentar documentos
+O Nexus.IA utiliza uma abordagem de recuperação aumentada por geração (RAG).
 
-1. Coloque PDFs, `.md` ou `.txt` em `documents/`.
-2. Na interface web, clique em **Recarregar documentos**; na CLI, reinicie o
-   comando.
-3. O índice é reconstruído e o novo documento aparece na barra lateral.
+O funcionamento ocorre nas seguintes etapas:
 
-Para respostas melhores, acrescente no topo de cada documento o nome da
-disciplina ou do regulamento: o recuperador usa esse nome para filtrar.
+1. **Ingestão:** leitura dos documentos armazenados na pasta `documents/`.
+2. **Divisão:** separação dos conteúdos em trechos menores.
+3. **Vetorização:** transformação dos trechos em embeddings utilizando FastEmbed.
+4. **Indexação:** armazenamento dos vetores e metadados em um índice local.
+5. **Recuperação:** identificação dos trechos mais relevantes para a pergunta.
+6. **Avaliação:** análise das evidências recuperadas.
+7. **Geração:** construção da resposta utilizando o modelo de linguagem.
+8. **Verificação:** conferência das citações e das evidências utilizadas.
 
----
+O fluxo utiliza o LangGraph para organizar as decisões do assistente.
 
-## 5. Estrutura
+## 8. Índice documental persistente
 
-```
-src/nexus/
-├── __main__.py        CLI (inclui o subcomando web)
-├── config.py          configuração via .env
-├── ingestao.py        leitura e divisão dos documentos
-├── recuperacao.py     embeddings locais + busca com filtros
-├── prompts.py         prompts do avaliador, do gerador e do agente
-├── rag_simples.py     busca → geração, sem decisões
-├── agente_langchain.py agente com ferramentas
-├── grafo.py           grafo LangGraph (avaliar, gerar, verificar, citar)
-├── avaliacao.py       casos de referência e avaliadores
-├── web.py             API HTTP + servidor da interface
-└── estatico/
-    ├── index.html     ecrã de chat
-    ├── estilo.css     tema claro/escuro e layout responsivo
-    ├── app.js         fetching, markdown, citações, sessões
-    └── favicon.svg
+Para evitar reconstruir todo o índice a cada execução, o projeto possui um mecanismo de armazenamento local.
+
+O índice fica na pasta:
+
+```text
+.nexus_cache/
 ```
 
----
+O sistema verifica a compatibilidade entre os documentos, o modelo de embeddings e o índice salvo.
 
-## 6. Como o grafo decide
+Quando os dados permanecem compatíveis, o índice anterior é reutilizado. Caso contrário, um novo índice é construído.
 
-```
-preparar → reformular → recuperar → avaliar ─┬─ responder → gerar → verificar ─┬─ finalizar
-                                             ├─ esclarecer ────────────────────┤
-                                             └─ sem_evidência ─────────────────┘
-```
+Essa pasta é local e está protegida pelo `.gitignore`, portanto não precisa ser enviada ao GitHub.
 
-- **recuperar** filtra pelo documento da disciplina quando a pergunta a nomeia.
-- **avaliar** verifica se os trechos sustentam uma resposta; abaixo do limiar
-  (`NEXUS_LIMIAR`, 0.40 por defeito) nem chega a chamar o modelo.
-- **verificar** exige citação `[n]` válida; se faltar, regenera até
-  `NEXUS_MAX_TENTATIVAS` e depois responde “não encontrei nos documentos”.
+## 9. API da interface web
 
----
+A aplicação utiliza FastAPI para disponibilizar os seguintes endpoints:
 
-## 7. Configuração (`.env`)
-
-| Variável | Por defeito | Efeito |
+| Método | Rota | Descrição |
 |---|---|---|
-| `GROQ_API_KEY` | — | obrigatória |
-| `NEXUS_MODELO` | `openai/gpt-oss-20b` | modelo de chat |
-| `NEXUS_EMBEDDINGS` | `sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2` | modelo local |
-| `NEXUS_DOCUMENTOS` | `documents/` | pasta indexada |
-| `NEXUS_K` | `4` | trechos por resposta |
-| `NEXUS_LIMIAR` | `0.40` | similaridade mínima |
-| `NEXUS_TAMANHO_TRECHO` | `500` | caracteres por trecho |
-| `NEXUS_SOBREPOSICAO` | `80` | sobreposição entre trechos |
-| `NEXUS_MAX_TENTATIVAS` | `2` | regenerações permitidas |
+| GET | `/api/estado` | Consulta o estado da aplicação e da base documental |
+| GET | `/api/exemplos` | Retorna perguntas sugeridas |
+| POST | `/api/conversa` | Envia uma pergunta ao assistente |
+| POST | `/api/reiniciar` | Reinicia uma sessão de conversa |
+| POST | `/api/documentos/recarregar` | Recarrega os documentos da base |
+| GET | `/api/config` | Consulta as configurações efetivas |
 
----
+A documentação interativa da API está disponível em:
 
-## 8. Testes
+```text
+http://127.0.0.1:8000/api/docs
+```
+
+## 10. Adicionar novos documentos
+
+Para acrescentar novos conteúdos à base de conhecimento:
+
+1. Adicione arquivos PDF, Markdown (`.md`) ou texto (`.txt`) à pasta `documents/`.
+2. Inicie a aplicação.
+3. Utilize a opção **Recarregar documentos** na interface web.
+4. Aguarde a preparação da nova base documental.
+
+O sistema realiza novamente a leitura e a indexação dos conteúdos.
+
+## 11. Configurações disponíveis
+
+As configurações podem ser personalizadas por meio das variáveis de ambiente.
+
+| Variável | Valor padrão | Descrição |
+|---|---|---|
+| `GROQ_API_KEY` | Obrigatória | Chave de acesso à Groq |
+| `NEXUS_MODELO` | `openai/gpt-oss-20b` | Modelo de linguagem |
+| `NEXUS_EMBEDDINGS` | `sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2` | Modelo de embeddings |
+| `NEXUS_DOCUMENTOS` | `documents/` | Diretório dos documentos |
+| `NEXUS_K` | `4` | Quantidade padrão de trechos recuperados |
+| `NEXUS_LIMIAR` | `0.40` | Limiar de similaridade |
+| `NEXUS_TAMANHO_TRECHO` | `500` | Tamanho dos trechos |
+| `NEXUS_SOBREPOSICAO` | `80` | Sobreposição entre trechos |
+| `NEXUS_MAX_TENTATIVAS` | `2` | Número máximo de tentativas de geração |
+
+## 12. Avaliação e testes
+
+O projeto possui testes automatizados na pasta `tests/`.
+
+Para executar:
 
 ```bash
-pytest                        # ingestão + interface web (base e modelo falsos)
+pytest
 ```
 
-Os testes da web não precisam de chave nem de rede: injetam uma base e um
-modelo falsos em `criar_app()`.
+Para executar a avaliação local do assistente:
+
+```bash
+python -m nexus.avaliacao local
+```
+
+Para registrar um experimento no LangSmith:
+
+```bash
+python -m nexus.avaliacao langsmith
+```
+
+A avaliação pelo LangSmith também exige a configuração de `LANGSMITH_API_KEY`.
+
+## 13. Limitações
+
+- As respostas dependem dos documentos disponíveis na base de conhecimento.
+- Informações que não possuem evidências documentais podem resultar em pedidos de esclarecimento ou indicação de ausência de evidências.
+- Os embeddings são processados localmente, mas o modelo de linguagem depende da API da Groq.
+- A interface web está configurada para uso local por padrão.
+- A aplicação não possui autenticação de usuários implementada.
+
+## 14. Repositório
+
+**GitHub:** https://github.com/erikavito/nexus.ia
 
 ---
 
-## 9. Limitações
+**Nexus.IA — Assistente Virtual Acadêmico**
 
-- O assistente só confirma o que está nos documentos; não substitui os serviços
-  académicos.
-- Datas, prazos e notas devem ser sempre confirmados nos canais oficiais.
-- A interface web é para uso local (`127.0.0.1`). Para a expor numa rede,
-  acrescente autenticação e HTTPS — não há login implementado.
+*Conectando inteligência artificial e conhecimento acadêmico para facilitar o acesso à informação.*
