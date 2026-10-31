@@ -4,7 +4,10 @@ from dataclasses import dataclass
 
 from langchain_core.documents import Document
 from langchain_core.embeddings import Embeddings
-from langchain_core.vectorstores import InMemoryVectorStore
+import hashlib
+import json
+import math
+from pathlib import Path
 from langsmith import traceable
 
 import unicodedata
@@ -13,7 +16,7 @@ FONTES_POR_DISCIPLINA = {
     "redes de computadores": "plano-redes-de-computadores.pdf",
     "programacao para web": "plano-programacao-para-web.pdf",
     "inteligencia artificial": "plano-inteligencia-artificial.pdf",
-    "economia": "plano-economia.pdf",
+    "economia": "plano-economia.pdf",        
     "design de interacao": "plano-design-de-interacao.pdf",
     "big data e ciencias de dados": "plano-big-data-e-ciencias-de-dados.pdf",
     "ciencias de dados": "plano-big-data-e-ciencias-de-dados.pdf",
@@ -76,45 +79,133 @@ class Trecho:
             "similaridade": self.similaridade,
         }
 
-
 class EmbeddingsLocais(Embeddings):
-    """Adapta a biblioteca fastembed à interface Embeddings do LangChain.
-
-
-    O modelo é baixado uma vez e roda no próprio computador, sem chave e sem custo
-    por chamada. Qualquer outro provedor de embeddings que implemente a mesma
-    interface pode substituir esta classe sem mudar o resto do projeto."""
+    """Adapta FastEmbed à interface Embeddings do LangChain."""
 
     def __init__(self, nome_modelo: str):
         from fastembed import TextEmbedding
 
-        self.modelo = TextEmbedding(model_name=nome_modelo)
+        self.modelo = TextEmbedding(
+            model_name=nome_modelo,
+            threads=1
+        )
+        self.nome_modelo = nome_modelo
 
     def embed_documents(self, textos: list[str]) -> list[list[float]]:
-        return [vetor.tolist() for vetor in self.modelo.embed(textos)]
+        return [
+            vetor.tolist()
+            for vetor in self.modelo.embed(
+                textos,
+                batch_size=4,
+                parallel=1
+            )
+        ]
 
     def embed_query(self, texto: str) -> list[float]:
         return self.embed_documents([texto])[0]
 
-
 class BaseDocumental:
-
     def __init__(self, trechos: list[Document], embeddings: Embeddings):
-        self.loja = InMemoryVectorStore(embedding=embeddings)
-
-        # Adiciona os trechos à base vetorial.
-        self.loja.add_documents(trechos)
-
-        # Guarda os documentos e as informações da base.
+        self.embeddings = embeddings
         self.documentos_indexados = trechos
         self.fontes = sorted({t.metadata["fonte"] for t in trechos})
         self.total_trechos = len(trechos)
 
+        # Local onde o índice será salvo.
+        raiz = Path(__file__).resolve().parents[2]
+        self.pasta_cache = raiz / ".nexus_cache"
+        self.arquivo_indice = self.pasta_cache / "indice.json"
 
+        # Identifica se os documentos foram modificados.
+        identificador = hashlib.sha256()
+
+        for doc in trechos:
+            identificador.update(doc.page_content.encode("utf-8"))
+            identificador.update(
+                str(doc.metadata.get("fonte", "")).encode("utf-8")
+            )
+            identificador.update(
+                str(doc.metadata.get("pagina", "")).encode("utf-8")
+            )
+
+        self.fingerprint = identificador.hexdigest()
+        self.modelo = getattr(embeddings, "nome_modelo", "")
+
+        # Tenta reutilizar o índice salvo.
+        if self._carregar_indice():
+            print("Índice anterior carregado com sucesso!", flush=True)
+        else:
+            self._criar_indice()
+
+    def _carregar_indice(self) -> bool:
+        if not self.arquivo_indice.exists():
+            return False
+
+        try:
+            with self.arquivo_indice.open("r", encoding="utf-8") as arquivo:
+                dados = json.load(arquivo)
+
+            if dados.get("fingerprint") != self.fingerprint:
+                return False
+
+            if dados.get("modelo") != self.modelo:
+                return False
+
+            self.itens = dados["itens"]
+
+            if len(self.itens) != self.total_trechos:
+                return False
+
+            return True
+
+        except (OSError, ValueError, KeyError, TypeError):
+            return False
+
+    def _criar_indice(self):
+        self.itens = []
+
+        print("Criando novo índice documental...", flush=True)
+
+        for inicio in range(0, len(self.documentos_indexados), 2):
+            lote = self.documentos_indexados[inicio:inicio + 2]
+
+            vetores = self.embeddings.embed_documents(
+                [doc.page_content for doc in lote]
+            )
+
+            for doc, vetor in zip(lote, vetores):
+                self.itens.append({
+                    "texto": doc.page_content,
+                    "fonte": doc.metadata["fonte"],
+                    "pagina": doc.metadata.get("pagina"),
+                    "vetor": vetor,
+                })
+
+            print(
+                f"Indexando: {len(self.itens)}/{self.total_trechos} trechos",
+                flush=True
+            )
+
+        # Salva o índice para reutilização.
+        self.pasta_cache.mkdir(parents=True, exist_ok=True)
+
+        dados = {
+            "fingerprint": self.fingerprint,
+            "modelo": self.modelo,
+            "itens": self.itens,
+        }
+
+        temporario = self.arquivo_indice.with_suffix(".tmp")
+
+        with temporario.open("w", encoding="utf-8") as arquivo:
+            json.dump(dados, arquivo, ensure_ascii=False)
+
+        temporario.replace(self.arquivo_indice)
+
+        print("Índice salvo com sucesso!", flush=True)
 
     @traceable(run_type="retriever", name="buscar_trechos")
     def buscar(self, consulta: str, k: int) -> list[Trecho]:
-        """Busca trechos e aplica os filtros explicitamente."""
         if not consulta.strip():
             return []
 
@@ -136,44 +227,54 @@ class BaseDocumental:
             )
         )
 
-        # Recupera os documentos sem depender do filtro do vector store.
-        total = len(self.documentos_indexados)
-        if total == 0:
+        if not self.itens:
             return []
 
-        pares = self.loja.similarity_search_with_score(
-            consulta,
-            k=total,
+        vetor_consulta = self.embeddings.embed_query(consulta)
+        norma_consulta = math.sqrt(
+            sum(valor * valor for valor in vetor_consulta)
         )
 
-        # Aplica o filtro de fonte diretamente aos resultados.
-        if fonte_alvo:
-            pares = [
-                (doc, score)
-                for doc, score in pares
-                if doc.metadata.get("fonte") == fonte_alvo
-            ]
+        pares = []
 
-        # Para conteúdos programáticos, considera as páginas iniciais.
-        if fonte_alvo and consulta_de_conteudo:
-            paginas_permitidas = {1, 2, 3, "1", "2", "3"}
-            pares = [
-                (doc, score)
-                for doc, score in pares
-                if doc.metadata.get("pagina") in paginas_permitidas
-            ]
-        else:
+        for item in self.itens:
+            if fonte_alvo and item["fonte"] != fonte_alvo:
+                continue
+
+            if fonte_alvo and consulta_de_conteudo:
+                if item["pagina"] not in (1, 2, 3, "1", "2", "3"):
+                    continue
+
+            vetor = item["vetor"]
+
+            norma_documento = math.sqrt(
+                sum(valor * valor for valor in vetor)
+            )
+
+            if norma_consulta == 0 or norma_documento == 0:
+                similaridade = 0.0
+            else:
+                produto = sum(
+                    a * b for a, b in zip(vetor_consulta, vetor)
+                )
+
+                similaridade = produto / (
+                    norma_consulta * norma_documento
+                )
+
+            pares.append((item, similaridade))
+
+        pares.sort(key=lambda item: item[1], reverse=True)
+
+        if not (fonte_alvo and consulta_de_conteudo):
             pares = pares[:k]
-
-        # Mantém primeiro os resultados mais semelhantes.
-        pares.sort(key=lambda item: float(item[1]), reverse=True)
 
         return [
             Trecho(
-                doc.page_content,
-                doc.metadata["fonte"],
-                doc.metadata.get("pagina"),
+                item["texto"],
+                item["fonte"],
+                item["pagina"],
                 round(float(score), 3),
             )
-            for doc, score in pares
+            for item, score in pares
         ]

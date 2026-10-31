@@ -1,8 +1,8 @@
 """Etapa 8: avaliação do Nexus AI com casos de referência e avaliadores determinísticos.
 
 
-python -m Nexus.avaliacao local        roda os casos e imprime a tabela (precisa de GROQ_API_KEY)
-python -m Nexus.avaliacao langsmith    cria o dataset no LangSmith e registra um experimento
+python -m nexus.avaliacao local        roda os casos e imprime a tabela (precisa de GROQ_API_KEY)
+python -m nexus.avaliacao langsmith    cria o dataset no LangSmith e registra um experimento
                                 (precisa também de LANGSMITH_API_KEY)
 """
 

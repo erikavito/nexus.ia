@@ -1,11 +1,12 @@
 """Linha de comando do Nexus AI.
 
 
-python -m Nexus buscar "pergunta"     só a recuperação, sem modelo de linguagem
-python -m Nexus simples "pergunta"    Etapa 4: buscar e gerar, sem decisões
-python -m Nexus agente "pergunta"     Etapa 5: agente do LangChain com ferramentas
-python -m Nexus conversar             Etapa 6: o grafo, em uma conversa
-python -m Nexus grafo                 imprime o grafo em Mermaid
+python -m nexus buscar "pergunta"     só a recuperação, sem modelo de linguagem
+python -m nexus simples "pergunta"    Etapa 4: buscar e gerar, sem decisões
+python -m nexus agente "pergunta"     Etapa 5: agente do LangChain com ferramentas
+python -m nexus conversar             Etapa 6: o grafo, em uma conversa
+python -m nexus grafo                 imprime o grafo em Mermaid
+python -m nexus web                   Etapa 9: interface web (http://127.0.0.1:8000)
 """
 
 import argparse
@@ -36,11 +37,21 @@ def main():
         sub.add_parser(nome).add_argument("texto")
     sub.add_parser("conversar").add_argument("--detalhes", action="store_true")
     sub.add_parser("grafo")
+    parser_web = sub.add_parser("web", help="interface web (navegador)")
+    parser_web.add_argument("--host", default="127.0.0.1")
+    parser_web.add_argument("--port", "--porta", dest="porta", type=int, default=8000)
+    parser_web.add_argument("--abrir", action="store_true", help="abre o navegador")
     args = analisador.parse_args()
     logging.basicConfig(
         level=logging.WARNING, format="%(levelname)s %(name)s: %(message)s"
     )
     config = Config()
+
+    if args.comando == "web":
+        from nexus.web import servidor
+
+        servidor(host=args.host, porta=args.porta, abrir=args.abrir)
+        return
 
     if args.comando == "grafo":
         from nexus.grafo import construir_grafo

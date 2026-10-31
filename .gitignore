@@ -16,3 +16,5 @@ __pycache__/
 
 # Configurações locais do VS Code
 .vscode/
+# Índice documental local
+.nexus_cache/
